@@ -543,6 +543,21 @@ def kimi(
             )
             startup_progress.stop()
 
+            # --- SessionStart hook ---
+            _session_source = "resume" if continue_ else "startup"
+            if instance.soul.hook_engine and instance.soul.hook_engine.has_hooks_for("SessionStart"):
+                from kimi_cli.hooks import events
+
+                await instance.soul.hook_engine.trigger(
+                    "SessionStart",
+                    matcher_value=_session_source,
+                    input_data=events.session_start(
+                        session_id=session.id,
+                        cwd=str(work_dir),
+                        source=_session_source,
+                    ),
+                )
+
             # Install stderr redirection only after initialization succeeded, so runtime
             # stderr noise is captured into logs without hiding startup failures.
             redirect_stderr_to_logger()
@@ -577,6 +592,26 @@ def kimi(
                 preserve_background_tasks = True
                 raise
             finally:
+                # --- SessionEnd hook ---
+                if instance.soul.hook_engine and instance.soul.hook_engine.has_hooks_for("SessionEnd"):
+                    from kimi_cli.hooks import events
+                    import asyncio as _asyncio
+
+                    try:
+                        await _asyncio.wait_for(
+                            instance.soul.hook_engine.trigger(
+                                "SessionEnd",
+                                input_data=events.session_end(
+                                    session_id=session.id,
+                                    cwd=str(work_dir),
+                                    reason="exit",
+                                ),
+                            ),
+                            timeout=5,
+                        )
+                    except Exception:
+                        pass  # Don't block exit on hook failure
+
                 if not preserve_background_tasks:
                     instance.shutdown_background_tasks()
 
