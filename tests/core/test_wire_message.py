@@ -589,6 +589,8 @@ def test_wire_message_type_alias():
 
     module = kimi_cli.wire.types
     # Helper types that are BaseModel subclasses but not WireMessage types
+    from kimi_cli.wire.types import HookResponse
+
     _NON_WIRE_TYPES = {
         WireMessageEnvelope,
         MCPServerSnapshot,
@@ -596,6 +598,7 @@ def test_wire_message_type_alias():
         QuestionOption,
         QuestionItem,
         QuestionResponse,
+        HookResponse,
     }
 
     wire_message_types = {
