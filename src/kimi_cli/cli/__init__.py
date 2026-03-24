@@ -605,6 +605,7 @@ def kimi(
                         await _asyncio.wait_for(
                             _he2.trigger(
                                 "SessionEnd",
+                                matcher_value="exit",
                                 input_data=events.session_end(
                                     session_id=session.id,
                                     cwd=str(work_dir),
