@@ -1256,6 +1256,7 @@ class CustomPromptSession:
         self._prompt_buffer_container: ConditionalContainer | None = None
         self._last_ui_state: PromptUIState = PromptUIState.NORMAL_INPUT
         self._suspended_buffer_document: Document | None = None
+        self._body_stable_lines: int = 0
         clipboard_available = is_clipboard_available()
         self._tips = _build_toolbar_tips(clipboard_available)
         self._tip_rotation_index: int = random.randrange(len(self._tips)) if self._tips else 0
@@ -1735,6 +1736,19 @@ class CustomPromptSession:
         fragments: FormattedText = FormattedText()
         body = self._render_agent_prompt_body(columns)
         if body:
+            # Height stabilization: prevent abrupt height shrinking by padding
+            # with empty lines at the top so the separator/input stay in place.
+            body_lines = sum(fragment[1].count("\n") for fragment in body) + 1
+            stable = getattr(self, "_body_stable_lines", 0)
+            padding = max(0, stable - body_lines)
+            for _ in range(padding):
+                fragments.append(("", "\n"))
+            # Gradual decay: allow 1 line reduction per render cycle (~0.1s)
+            if body_lines >= stable:
+                self._body_stable_lines = body_lines
+            else:
+                self._body_stable_lines = max(body_lines, stable - 1)
+
             fragments.extend(body)
             if not body[-1][1].endswith("\n"):
                 fragments.append(("", "\n"))
@@ -1901,6 +1915,7 @@ class CustomPromptSession:
         self._running_prompt_previous_mode = None
         if previous_mode is not None:
             self._mode = previous_mode
+        self._body_stable_lines = 0
         self._apply_mode()
         self.invalidate()
 
@@ -1935,6 +1950,11 @@ class CustomPromptSession:
             placeholder = delegate.running_prompt_placeholder()
         with patch_stdout(raw=True):
             command = str(await self._session.prompt_async(placeholder=placeholder)).strip()
+            # Prevent flickering: disable erase_when_done before returning so the
+            # input line is not cleared before we echo it ourselves.
+            app = getattr(self._session, "app", None)
+            if app is not None:
+                app.erase_when_done = False
             command = command.replace("\x00", "")  # just in case null bytes are somehow inserted
             # Sanitize UTF-16 surrogates that may come from Windows clipboard
             command = sanitize_surrogates(command)

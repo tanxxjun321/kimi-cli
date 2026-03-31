@@ -1120,22 +1120,28 @@ class _LiveView:
     def flush_finished_tool_calls(self) -> None:
         """Flush all leading finished tool call blocks."""
         tool_call_ids = list(self._tool_call_blocks.keys())
+        renderables: list[RenderableType] = []
         for tool_call_id in tool_call_ids:
             block = self._tool_call_blocks[tool_call_id]
             if not block.finished:
                 break
 
             self._tool_call_blocks.pop(tool_call_id)
-            console.print(block.compose())
+            renderables.append(block.compose())
             if self._last_tool_call_block == block:
                 self._last_tool_call_block = None
+        if renderables:
+            console.print(Group(*renderables))
             self.refresh_soon()
 
     def flush_notifications(self) -> None:
         """Flush rendered notifications to terminal history."""
         self._live_notification_blocks.clear()
+        renderables: list[RenderableType] = []
         while self._notification_blocks:
-            console.print(self._notification_blocks.popleft().compose())
+            renderables.append(self._notification_blocks.popleft().compose())
+        if renderables:
+            console.print(Group(*renderables))
             self.refresh_soon()
 
     def append_content(self, part: ContentPart) -> None:
